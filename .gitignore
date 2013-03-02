@@ -28,7 +28,7 @@ pkg
 #
 # For MacOS:
 #
-#.DS_Store
+.DS_Store
 
 # For TextMate
 #*.tmproj
@@ -50,3 +50,9 @@ pkg
 
 # ignore rubymine settings
 .idea/
+
+# ignore test xml file
+xml/*
+
+# ignore result text file
+*.txt
