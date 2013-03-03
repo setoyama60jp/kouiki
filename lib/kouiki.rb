@@ -22,6 +22,18 @@ module Kouiki
       @footnotes_count = @footnotes_count + 1
     end
 
+    def get_reference_name(reference_id)
+      if @tables.index(reference_id)
+        return "Table " + @chapter_num.to_s + "-" + (@tables.index(reference_id) + 1).to_s
+      end
+
+      if @figures.index(reference_id)
+        return "Figure " + @chapter_num.to_s + "-" + (@figures.index(reference_id) + 1).to_s
+      end
+
+      return "[Reference Not Found]"
+    end
+
   end
 
   class OreillyXmlConverter
@@ -34,23 +46,23 @@ module Kouiki
     def convert_to_markdown
       doc = Document.new File.new @xml_file_name
 
-      #XPath.each(doc, "//chapter").inject(1) do |index, chapter|
-      #
-      #  file_name = "chapter" + index.to_s + ".txt"
-      #
-      #  write_chapter(file_name, chapter)
-      #
-      #  #チャプター番号を1個増やす
-      #  index + 1
-      #end
+      XPath.each(doc, "//chapter").inject(1) do |index, chapter|
+
+        file_name = "chapter" + index.to_s + ".txt"
+        chapter_resource = ChapterResource.new index
+        write_chapter(file_name, chapter, chapter_resource)
+
+        #チャプター番号を1個増やす
+        index + 1
+      end
 
       #chater3 = doc.elements["//chapter[3]"]
       #chapter_resource = ChapterResource.new 3
       #write_chapter("chater3.txt", chater3, chapter_resource)
 
-      chater2 = doc.elements["//chapter[2]"]
-      chapter_resource = ChapterResource.new 2
-      write_chapter("chater2.txt", chater2, chapter_resource)
+      #chater2 = doc.elements["//chapter[2]"]
+      #chapter_resource = ChapterResource.new 2
+      #write_chapter("chater2.txt", chater2, chapter_resource)
 
 
 
@@ -78,15 +90,15 @@ module Kouiki
       #図、表は参照するために、リストを初期化しておく
 
       #まずは図のリスト
-      chapter_element.elements.to_a("./figure").each do |figure|
-        chapter_resource.figures.add figure.attribute('id').to_s
+      chapter_element.elements.to_a(".//figure").each do |figure|
+        chapter_resource.figures.push figure.attribute('id').to_s
       end
 
       #puts chapter_resource.figures
 
       #次に表のリスト
-      chapter_element.elements.to_a("./table").each do |table|
-        chapter_resource.tables.add table.attribute('id').to_s
+      chapter_element.elements.to_a(".//table").each do |table|
+        chapter_resource.tables.push table.attribute('id').to_s
       end
 
       #puts chapter_resource.tables
@@ -139,7 +151,89 @@ module Kouiki
         if (element.name == "variablelist")
           write_variablelist(file, element, chapter_resource)
         end
+
+        if (element.name == "figure")
+          write_figure(file, element, chapter_resource)
+        end
+
+        if (element.name == "table")
+          write_table(file, element, chapter_resource)
+        end
       end
+    end
+
+    def write_figure(file, element, chapter_resource)
+      figure_num = chapter_resource.get_reference_name(element.attribute('id').to_s)
+
+      output = figure_num + ". "
+
+      figure_title = element.elements["title"].text
+
+      if figure_title
+        output = output + figure_title
+      end
+
+      file.write(output)
+      insert_crlf_into file #改行
+      insert_crlf_into file #空行を挿入
+    end
+
+    def write_table(file, element, chapter_resource)
+
+      #まずは、表の上にタイトルを挿入
+      table_num = chapter_resource.get_reference_name(element.attribute('id').to_s)
+      output = table_num + ". "
+
+      table_title = element.elements["title"].text
+
+      if table_title
+        output = output + table_title
+      end
+
+      file.write(output)
+      insert_crlf_into file #改行
+      insert_crlf_into file #空行を挿入
+
+      #次にテーブルの中身を書く
+
+      #テーブルヘッダーを取得
+      thead_row = element.elements['.//thead/row']
+
+      thead_entries = thead_row.elements.to_a("entry")
+      thead_entries.each.inject(true) do |is_first_element, entry|
+        unless is_first_element
+          file.write('|')
+        else
+          is_first_element = false
+        end
+        write_all_text_contents(file, entry, chapter_resource, true, true, true)
+      end
+      insert_crlf_into file #改行
+      #ヘッダー行の次の区切り行を追加
+
+      (thead_entries.length - 1).times do
+        file.write('----')
+        file.write('|')
+      end
+      file.write('----')
+      insert_crlf_into file #改行
+
+      #次にテーブルのコンテンツを追加していく
+      tbody_rows = element.elements.to_a(".//tbody/row")
+
+      tbody_rows.each do |row|
+        row.elements.to_a("entry").each.inject(true) do |is_first_entry, entry|
+          unless is_first_entry
+            file.write('|')
+          else
+            is_first_entry = false
+          end
+          write_all_text_contents(file, entry, chapter_resource, true, true, true)
+        end
+        insert_crlf_into file #改行
+      end
+
+      insert_crlf_into file #空行を入れる
     end
 
     def write_variablelist(file, element, chapter_resource)
@@ -209,11 +303,22 @@ module Kouiki
 
     def write_para(file, para_element, chapter_resource, without_end_crlf = false)
 
+      write_all_text_contents(file, para_element, chapter_resource, without_end_crlf, false, true)
+
+    end
+
+
+
+    def write_all_text_contents(file, element, chapter_resource, without_end_crlf=false, inline=false, remove_crlf=false)
       footnote_index_and_para_elements = Hash.new #{footnote_index, para_element_list}形式のハッシュ
 
-      para_element.each_child do |child|
+      element.each_child do |child|
         if (child.node_type == :text)
-          file.write(child.value)
+          if(remove_crlf)
+            file.write(remove_all_crlf(child.value))
+          else
+            file.write(child.value)
+          end
         else
           if (child.node_type == :element and child.name == "emphasis")
             file.write(clip_markdown_italic_for(child.text))
@@ -231,27 +336,42 @@ module Kouiki
             footnote_index_and_para_elements[footnote_index] = child.elements.to_a("para")
 
             write_footnote_index(file, footnote_index)
+          elsif (child.node_type == :element and child.name == "xref")
+            write_xref(file, child, chapter_resource)
+          elsif (child.node_type == :elemet and child.name == "inlineequation")
+            write_all_text_contents(file, element, chapter_resource, true, true, true)
           else
-            file.write(child.text)
+            if(remove_crlf)
+              file.write(remove_all_crlf(child.text)) if(child.text)
+            else
+              file.write(child.text)
+            end
           end
         end
       end
-      insert_crlf_into file #改行
+      insert_crlf_into file unless inline #改行
       insert_crlf_into file unless without_end_crlf #空行を入れる
 
       #foot_notesがあれば、パラグラフの末尾に、foot_noteを記述する
-      if (footnote_index_and_para_elements.length > 0)
+      if (footnote_index_and_para_elements.length > 0 and not inline)
         footnote_index_and_para_elements.each do |footnote_index, para_element_list|
 
           write_footnote_index(file, footnote_index, true)
           para_element_list.each do |para_element|
-            write_para(file, para_element, chapter_resource, true)
+            write_all_text_contents(file, para_element, chapter_resource, true, false, false)
           end
           #末尾には空行を入れておく。
           insert_crlf_into file
         end
       end
+    end
 
+    def write_xref(file, element, chapter_resource)
+      #属性linkendを取得
+      linkend = element.attribute("linkend").to_s
+      ref_name = chapter_resource.get_reference_name(linkend)
+
+      file.write(ref_name)
     end
 
     def write_footnote_index(file, footnote_index, is_footnote_contents=false)
@@ -276,7 +396,7 @@ module Kouiki
           file.write(output_text)
         else
           insert_whitespace_into file
-          output_text =em_element.text +
+          output_text =ulink_element.text +
             '(' + ulink_element.attribute('url').to_s + ')'
           file.write(output_text)
         end
@@ -286,7 +406,7 @@ module Kouiki
     def write_blockquote(file, blockquote_element, chapter_resource)
       blockquote_element.elements.to_a("para").each do |para|
         insert_markdown_blockquote_into file
-        write_para(file, para, chapter_resource)
+        write_all_text_contents(file, para, chapter_resource, false, false, false)
       end
       attri_element = blockquote_element.elements["attribution"]
       if attri_element
@@ -295,6 +415,7 @@ module Kouiki
         file.write(attri_element.text)
       end
       insert_crlf_into file #改行
+      insert_crlf_into file #空行を入れる
       insert_crlf_into file #空行を入れる
     end
 
@@ -345,6 +466,10 @@ module Kouiki
 
     def insert_whitespace_into(file)
       file.write(' ')
+    end
+
+    def remove_all_crlf(text)
+      return text.gsub(/[\n]/,"")
     end
   end
 end
