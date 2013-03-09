@@ -377,7 +377,7 @@ module Kouiki
 
           write_footnote_index(file, footnote_index, true)
           para_element_list.each do |para_element|
-            write_all_text_contents(file, para_element, chapter_resource, true, true, true)
+            write_all_text_contents(file, para_element, chapter_resource, false, true, true) #末尾の改行は必要
           end
           #末尾には空行を入れておく。
           insert_crlf_into file
