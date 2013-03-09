@@ -65,7 +65,6 @@ module Kouiki
       #write_chapter("chater2.txt", chater2, chapter_resource)
 
 
-
     end
 
     private
@@ -321,13 +320,12 @@ module Kouiki
     end
 
 
-
     def write_all_text_contents(file, element, chapter_resource, without_end_crlf=false, inline=false, remove_crlf=false)
       footnote_index_and_para_elements = Hash.new #{footnote_index, para_element_list}形式のハッシュ
 
       element.each_child do |child|
         if (child.node_type == :text)
-          if(remove_crlf)
+          if (remove_crlf)
             file.write(remove_all_crlf(child.value))
           else
             file.write(child.value)
@@ -354,13 +352,13 @@ module Kouiki
           elsif (child.node_type == :elemet and child.name == "inlineequation")
             write_inline_text_contents(file, element, chapter_resource)
           else
-            if(remove_crlf)
-              file.write(remove_all_crlf(child.text)) if(child.text)
+            if (remove_crlf)
+              file.write(remove_all_crlf(child.text)) if (child.text)
             else
               file.write(child.text)
             end
 
-            if(child.has_elements?)
+            if (child.has_elements?)
               child.elements.each do |element|
                 write_inline_text_contents(file, element, chapter_resource)
               end
@@ -420,9 +418,17 @@ module Kouiki
           file.write(output_text)
         else
           insert_whitespace_into file
-          output_text =ulink_element.text +
-            '(' + ulink_element.attribute('url').to_s + ')'
-          file.write(output_text)
+          child_text = ulink_element.text
+          url_attribute = ulink_element.attribute('url').to_s
+
+          if (child_text == url_attribute)
+            #属性値とchild_textが同じurlを持っていたら、片方だけ出力（たまにある。。）
+            file.write(child_text)
+          else
+            output_text =child_text + '(' + url_attribute + ')'
+            file.write(output_text)
+          end
+
         end
       end
     end
@@ -493,7 +499,7 @@ module Kouiki
     end
 
     def remove_all_crlf(text)
-      return text.gsub(/[\n]/,"")
+      return text.gsub(/[\n]/, "")
     end
 
     def insert_hr_into(file)
