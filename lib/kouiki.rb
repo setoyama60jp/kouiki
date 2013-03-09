@@ -352,12 +352,18 @@ module Kouiki
           elsif (child.node_type == :element and child.name == "xref")
             write_xref(file, child, chapter_resource)
           elsif (child.node_type == :elemet and child.name == "inlineequation")
-            write_all_text_contents(file, element, chapter_resource, true, true, true)
+            write_inline_text_contents(file, element, chapter_resource)
           else
             if(remove_crlf)
               file.write(remove_all_crlf(child.text)) if(child.text)
             else
               file.write(child.text)
+            end
+
+            if(child.has_elements?)
+              child.elements.each do |element|
+                write_inline_text_contents(file, element, chapter_resource)
+              end
             end
           end
         end
@@ -371,13 +377,18 @@ module Kouiki
 
           write_footnote_index(file, footnote_index, true)
           para_element_list.each do |para_element|
-            write_all_text_contents(file, para_element, chapter_resource, true, false, false)
+            write_all_text_contents(file, para_element, chapter_resource, true, true, true)
           end
           #末尾には空行を入れておく。
           insert_crlf_into file
         end
       end
     end
+
+    def write_inline_text_contents(file, element, chapter_resource)
+      write_all_text_contents(file, element, chapter_resource, true, true, true)
+    end
+
 
     def write_xref(file, element, chapter_resource)
       #属性linkendを取得
