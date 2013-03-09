@@ -159,6 +159,10 @@ module Kouiki
         if (element.name == "table")
           write_table(file, element, chapter_resource)
         end
+
+        if (element.name == "sidebar")
+          write_sidebar(file, element, chapter_resource)
+        end
       end
     end
 
@@ -279,6 +283,15 @@ module Kouiki
 
     def write_caution(file, element, chapter_resource)
       write_blockquote(file, element, chapter_resource)
+    end
+
+    def write_sidebar(file, element, chapter_resource)
+      #実際はsection1と同じレベルで中身を書く
+      insert_hr_into(file)
+
+      write_section(file, element, chapter_resource, 2)
+
+      insert_hr_into(file)
     end
 
     def write_section(file, section_element, chapter_resource, section_level)
@@ -416,7 +429,7 @@ module Kouiki
       end
       insert_crlf_into file #改行
       insert_crlf_into file #空行を入れる
-      insert_crlf_into file #空行を入れる
+      insert_hr_into file #blockquoteが2回連続で続いた場合に、つながってしまうので、hrタグを末尾に挿入する。
     end
 
     def write_chapter_title(file, chap_title_element)
@@ -470,6 +483,11 @@ module Kouiki
 
     def remove_all_crlf(text)
       return text.gsub(/[\n]/,"")
+    end
+
+    def insert_hr_into(file)
+      file.write('----')
+      insert_crlf_into(file)
     end
   end
 end
